@@ -1,0 +1,17 @@
+{
+  "venvPath": "D:/Projects/Personal projects/AI_Search_Engine/backend",
+  "venv": ".venv",
+  "extraPaths": [
+    "backend",
+    "backend/.venv/Lib/site-packages"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "backend",
+      "extraPaths": [
+        ".",
+        ".venv/Lib/site-packages"
+      ]
+    }
+  ]
+}
