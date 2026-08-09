@@ -29,6 +29,10 @@ class User(Base):
     # Just a display name, no uniqueness constraint needed
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
 
+    # The bcrypt hash of the user's password, e.g. "$2b$12$LJ3m4ys1Kn..."
+    # We NEVER store the plaintext password — only this irreversible hash.
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+
     # server_default=func.now() means PostgreSQL itself fills in the timestamp
     # when a row is inserted — your Python code doesn't need to set it.
     created_at: Mapped[datetime] = mapped_column(
