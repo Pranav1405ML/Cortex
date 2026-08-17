@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"       # HMAC-SHA256 (symmetric signing)
     JWT_EXPIRE_MINUTES: int = 60       # token lifetime in minutes
 
+    # --- Gemini AI settings ---
+    GEMINI_API_KEY: str                # loaded from .env, no default = required
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

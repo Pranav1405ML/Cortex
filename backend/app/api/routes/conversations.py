@@ -25,6 +25,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.conversation import ConversationCreate, ConversationResponse
 from app.schemas.message import MessageCreate, MessageResponse
+from app.services.ai_service import AIServiceError, generate_reply
 
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
@@ -92,17 +93,53 @@ async def delete_conversation(conversation_id: uuid.UUID, current_user: User = D
 # Message endpoints (nested under a conversation)
 # ---------------------------------------------------------------------------
 
-@router.post("/{conversation_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED,)
-async def create_message(conversation_id: uuid.UUID, payload: MessageCreate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> MessageResponse:
+@router.post("/{conversation_id}/messages", response_model=list[MessageResponse], status_code=status.HTTP_201_CREATED,)
+async def create_message(conversation_id: uuid.UUID, payload: MessageCreate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> list[MessageResponse]:
     """
-    Add a message to a conversation.
-    Verifies the conversation belongs to the current user first.
+    Send a user message and get an AI reply.
+
+    Flow:
+      1. Verify the conversation belongs to the current user.
+      2. Store the incoming user message in the database.
+      3. Fetch the full conversation history (including the new message).
+      4. Send the history to Gemini and get an assistant reply.
+      5. Store the assistant reply in the database.
+      6. Return both the user message and the assistant reply.
+
+    On AI failure, returns 502 Bad Gateway with a clean error message
+    (the user's message is still persisted).
     """
-    # Ownership check — 404 if not found or not theirs
+    # 1. Ownership check — 404 if not found or not theirs
     await _get_owned_conversation(db, conversation_id, current_user.id)
 
-    message = await crud_message.create_message(db, conversation_id=conversation_id, role=payload.role, content=payload.content)
-    return MessageResponse.model_validate(message)
+    # 2. Store the user's message
+    user_message = await crud_message.create_message(
+        db, conversation_id=conversation_id, role=payload.role, content=payload.content,
+    )
+
+    # 3. Fetch full conversation history (chronological)
+    all_messages = await crud_message.list_messages(db, conversation_id)
+    history = [{"role": m.role, "content": m.content} for m in all_messages]
+
+    # 4. Call the AI service
+    try:
+        reply_text = await generate_reply(history)
+    except AIServiceError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=exc.detail,
+        ) from exc
+
+    # 5. Store the assistant's reply
+    assistant_message = await crud_message.create_message(
+        db, conversation_id=conversation_id, role="assistant", content=reply_text,
+    )
+
+    # 6. Return both messages
+    return [
+        MessageResponse.model_validate(user_message),
+        MessageResponse.model_validate(assistant_message),
+    ]
 
 
 @router.get("/{conversation_id}/messages", response_model=list[MessageResponse])
