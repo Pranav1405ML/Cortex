@@ -68,7 +68,7 @@ async def generate_reply(conversation_history: list[dict]) -> str:
     # --- Map our message format → Gemini's expected format ---
     # Gemini uses role="model" where we use role="assistant".
     # Each message becomes a Content object with a single text Part.
-    gemini_contents: list[types.Content] = []
+    gemini_contents = []
     for msg in conversation_history:
         gemini_role = "model" if msg["role"] == "assistant" else msg["role"]
         gemini_contents.append(
